@@ -155,14 +155,14 @@ impl PerpContract {
         }
         let leverage: i128 = env.storage().instance().get(&LEVERAGE).unwrap();
         let mut ret = position.value;
-        let multiplier = (leverage * position.value) / position.open_price;
+        let multiplier = (leverage * position.value * 10000) / position.open_price;
         if gain > 0 {
-            ret = position.value + (gain * multiplier);
+            ret = position.value + ((gain * multiplier) / 10000);
         } else if loss > 0 {
-            if loss * leverage > position.value {
-                return 0; // should we take into account collateral requirements?
+            if (loss * multiplier) > position.value {
+                return 0; // liquidated
             }
-            ret = position.value - (loss * multiplier);
+            ret = position.value - ((loss * multiplier) / 10000);
         }
         ret
     }
@@ -218,9 +218,8 @@ impl PerpContract {
         let position = positions.get(user.clone()).unwrap();
         let ret_bal = Self::calculate_position(&env, user.clone());
         let margin_req: i128 = env.storage().instance().get(&MARGIN_REQ).unwrap();
-
-        let margin = ret_bal * 10000 / position.value;
-        if margin >= margin_req {
+        let required_val = (position.value * margin_req) / 10000;
+        if ret_bal >= required_val {
             panic_with_error!(&env, ContractError::AboveMargin);
         }
 

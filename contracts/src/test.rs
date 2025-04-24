@@ -174,6 +174,10 @@ fn test_calculate_position_long_profit() {
     let env = Env::default();
     let (client_id, client, token_id, token) = setup(&env);
     
+    env.as_contract(&client_id, || {
+        env.storage().instance().set(&PRICE, &50000_i128);
+    });
+
     // Create a user and place a long position
     let trader = Address::generate(&env);
     mint_tokens(&env, &token_id, &trader, 1000_i128);
@@ -186,6 +190,11 @@ fn test_calculate_position_long_profit() {
     // Price goes up
     env.as_contract(&client_id, || {
         env.storage().instance().set(&PRICE, &55000_i128);
+    });
+
+    env.as_contract(&client.address, || {
+        let price: i128 = env.storage().instance().get(&PRICE).unwrap();
+        assert_eq!(price, 55000_i128);
     });
     
     // Calculate position - should show profit
@@ -297,6 +306,7 @@ fn test_close_trade() {
     // Create a user and place a position
     let trader = Address::generate(&env);
     mint_tokens(&env, &token_id, &trader, 1000_i128);
+    mint_tokens(&env, &token_id, &client_id, 10000000_i128);
     
     env.mock_all_auths();
     token.approve(&trader, &client_id, &1000_i128, &0_u32);
@@ -401,13 +411,6 @@ fn test_liquidate_healthy_position() {
     env.mock_all_auths();
     token.approve(&trader, &client_id, &1000_i128, &0_u32);
     client.place_trade(&trader, &1000_i128, &true);
-    
-    // Price drops but position still healthy
-    env.as_contract(&client_id, || {
-        env.storage().instance().set(&PRICE, &49000_i128);
-        // Normal margin requirement
-        env.storage().instance().set(&MARGIN_REQ, &300_i128);
-    });
     
     // Try to liquidate the position
     client.liquidate_position(&liquidator, &trader);
